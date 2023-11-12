@@ -1,28 +1,45 @@
 #!/usr/bin/env node
 
-// geojson-tools
-
-// For each new release, update in package.json and create a new tag in GitHub - used in version string
+// gpx-tools
 
 // No need to use moment: https://momentjs.com/docs/#/-project-status/
 
 const fs = require('fs')
 const path = require('path')
-const execSync = require('child_process').execSync
 const { glob } = require('glob')
-const { XMLParser } = require('fast-xml-parser')
+const { XMLParser, XMLBuilder } = require('fast-xml-parser')
 
 let config = false
-const xmlparser = new XMLParser()
+const xmlparseoptions = {
+  ignoreAttributes: false
+}
+const xmlparser = new XMLParser(xmlparseoptions)
 
-// Get version from last git commit
-// console.log(new Date().toLocaleDateString('en-gb'))
+const xmlbuilderoptions = {
+  attributeNamePrefix: '@_',
+  ignoreAttributes: false
+}
+const xmlbuilder = new XMLBuilder(xmlbuilderoptions)
+
+// Get version from package.json
+const packageJson = fs.readFileSync('./package.json')
+const version = JSON.parse(packageJson).version || 0
+console.log('version', version)
+process.env.version = version
+
 const snow = new Intl.DateTimeFormat('en-gb', { dateStyle: 'full', timeStyle: 'medium' }).format(new Date())
-let version = 'gpx-tools - run at ' + snow
-try {
-  const gitdescr = execSync('git describe --tags --long')
-  version += ' ' + gitdescr.toString('utf8', 0, gitdescr.length - 1)
-} catch (e) { }
+const fullversion = 'gpx-tools ' + version + ' - run at ' + snow
+
+// Where GPX data is accumulated:
+const output = {
+  gpx: {
+    wpt: [],
+    trk: [],
+    '@_version': version,
+    '@_creator': 'gpx-tools ' + version
+  }
+}
+
 
 /// ////////////////////////////////////////////////////////////////////////////////////
 // run: called when run from command line
@@ -30,7 +47,7 @@ try {
 async function run (argv) {
   let rv = 1
   try {
-    console.log(version)
+    console.log(fullversion)
     // Display usage
     if (argv.length <= 2) {
       console.error('usage: node gpx-tools.js <config.json>')
@@ -65,7 +82,9 @@ async function run (argv) {
     fs.mkdirSync(path.join(__dirname, config.outputFolder), { recursive: true })
 
     // let totalrecords = 0
-    rv = await processFiles()
+    rv = await processInput()
+
+    rv = await generateOutput()
 
     if (rv) console.log('SUCCESS')
     return 1
@@ -78,9 +97,9 @@ async function run (argv) {
 /// ////////////////////////////////////////////////////////////////////////////////////
 /// ////////////////////////////////////////////////////////////////////////////////////
 
-async function processFiles () {
+async function processInput () {
   let rv = 1
-  console.log('processFiles', config.input.gpx)
+  console.log('processInput', config.input.gpx)
   const files = await glob(config.input.gpx)
   if (files.length === 0) {
     console.error('NO FILE(S) FOUND FOR: ', config.input.gpx)
@@ -106,18 +125,35 @@ async function processFiles () {
   return rv
 }
 
+/// ////////////////////////////////////////////////////////////////////////////////////
+
 async function processGPX (xmlgpx) {
   if (!xmlgpx.gpx) return
   if (xmlgpx.gpx.wpt) {
     for (const waypoint of xmlgpx.gpx.wpt) {
       console.log('waypoint', waypoint)
+      output.gpx.wpt.push(waypoint)
     }
   }
   if (xmlgpx.gpx.trk) {
     for (const track of xmlgpx.gpx.trk) {
       console.log('track', track)
+      output.gpx.trk.push(track)
     }
   }
+}
+
+/// ////////////////////////////////////////////////////////////////////////////////////
+
+async function generateOutput () {
+  const xmloutput = '<?xml version="1.0"?>' + xmlbuilder.build(output)
+  console.log(xmloutput.length)
+  const now = new Date()
+  // const outputpath = path.join(__dirname, config.outputFolder + '/' + now.toISOString()+'.gpx')
+  const outputpath = path.join(__dirname, config.outputFolder + '/hello.gpx')
+  fs.writeFileSync(outputpath, xmloutput, { encoding: 'utf8', flush: true })
+
+  console.log('Created: ', outputpath)
 }
 
 /// ////////////////////////////////////////////////////////////////////////////////////
