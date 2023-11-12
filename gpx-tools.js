@@ -40,7 +40,6 @@ const output = {
   }
 }
 
-
 /// ////////////////////////////////////////////////////////////////////////////////////
 // run: called when run from command line
 
@@ -114,7 +113,7 @@ async function processInput () {
         console.log('data', data.length)
         const xmlgpx = xmlparser.parse(data)
         // console.log('xmlgpx', xmlgpx)
-        await processGPX(xmlgpx)
+        await processGPX(file, xmlgpx)
       } catch (err) {
         console.error(err)
       }
@@ -127,19 +126,33 @@ async function processInput () {
 
 /// ////////////////////////////////////////////////////////////////////////////////////
 
-async function processGPX (xmlgpx) {
+async function processGPX (file, xmlgpx) {
   if (!xmlgpx.gpx) return
-  if (xmlgpx.gpx.wpt) {
-    for (const waypoint of xmlgpx.gpx.wpt) {
-      console.log('waypoint', waypoint)
-      output.gpx.wpt.push(waypoint)
+  try {
+    if (xmlgpx.gpx.wpt) {
+      if( !Array.isArray(xmlgpx.gpx.wpt)){
+        xmlgpx.gpx.wpt = [xmlgpx.gpx.wpt]
+      }
+      for (const waypoint of xmlgpx.gpx.wpt) {
+      // console.log('waypoint', waypoint)
+        output.gpx.wpt.push(waypoint)
+      }
     }
+  } catch (e) {
+    console.log('Exception', file, e.message)
   }
-  if (xmlgpx.gpx.trk) {
-    for (const track of xmlgpx.gpx.trk) {
-      console.log('track', track)
-      output.gpx.trk.push(track)
+  try {
+    if (xmlgpx.gpx.trk) {
+      if( !Array.isArray(xmlgpx.gpx.trk)){
+        xmlgpx.gpx.trk = [xmlgpx.gpx.trk]
+      }
+      for (const track of xmlgpx.gpx.trk) {
+      // console.log('track', track)
+        output.gpx.trk.push(track)
+      }
     }
+  } catch (e) {
+    console.log('Exception', file, e.message)
   }
 }
 
