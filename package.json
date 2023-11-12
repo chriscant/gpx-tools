@@ -1,0 +1,24 @@
+{
+  "name": "gpx-tools",
+  "version": "1.0.0",
+  "description": "Tools for GPX files",
+  "main": "gpx-tools.js",
+  "scripts": {
+    "test": "jest",
+    "testrel": "jest && coveralls < coverage/lcov.info",
+    "standard": "standard *.js"
+  },
+  "author": "Chris Cant",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/chriscant/gpx-tools.git"
+  },
+  "comments": {
+    "onetest": "jest -t 'TEST #1'"
+  },
+  "dependencies": {
+    "fast-xml-parser": "^4.3.2",
+    "glob": "^10.3.10"
+  }
+}
