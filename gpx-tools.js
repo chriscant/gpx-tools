@@ -39,6 +39,21 @@ const output = {
     '@_creator': 'gpx-tools ' + version
   }
 }
+const outputTrkpts = []
+
+let filesRead = 0
+let fails = 0
+let failmessages = ''
+let notgpx = 0
+let inputtracks = 0
+let validtracks = 0
+let uniquetracks = 0
+let duplicatetracks = 0
+let emptytracks = 0
+let uniquetrackpts = 0
+let inputwaypoints = 0
+let duplicatewaypoints = 0
+let uniquewaypoints = 0
 
 /// ////////////////////////////////////////////////////////////////////////////////////
 // run: called when run from command line
@@ -85,6 +100,20 @@ async function run (argv) {
 
     rv = await generateOutput()
 
+    console.log('==================')
+    console.log('  filesRead', filesRead)
+    console.log('  fails', fails, failmessages)
+    console.log('  notgpx', notgpx)
+    console.log('  inputtracks', inputtracks)
+    console.log('  emptytracks', emptytracks)
+    console.log('  validtracks', validtracks)
+    console.log('  duplicatetracks', duplicatetracks)
+    console.log('* uniquetracks', uniquetracks)
+    console.log('* uniquetrackpts', uniquetrackpts)
+    console.log('  inputwaypoints', inputwaypoints)
+    console.log('  duplicatewaypoints', duplicatewaypoints)
+    console.log('* uniquewaypoints', uniquewaypoints)
+
     if (rv) console.log('SUCCESS')
     return 1
   } catch (e) {
@@ -104,38 +133,54 @@ async function processInput () {
     console.error('NO FILE(S) FOUND FOR: ', config.input.gpx)
     rv = 0
   } else {
-    // const donecount = 0
-    // for (const file of Object.values(files)) {
     for (const file of files) {
       console.log(file)
       try {
         const data = fs.readFileSync(file, config.input.encoding)
+        filesRead++
         console.log('data', data.length)
         const xmlgpx = xmlparser.parse(data)
         // console.log('xmlgpx', xmlgpx)
         await processGPX(file, xmlgpx)
       } catch (err) {
         console.error(err)
+        failmessages += file + ': ' + err.message + '\r\n'
+        fails++
       }
     }
     console.log('COMPLETED READING DATA')
-    // await importComplete(totalrecords)
   }
   return rv
 }
 
 /// ////////////////////////////////////////////////////////////////////////////////////
+//  waypoint {
+//    time: '2022-02-28T00:00:00Z',
+//    name: 'Romjularia lurida',
+//    '@_lat': '55.95406591571825',
+//    '@_lon': '-5.68302702716408'
+//  }
 
 async function processGPX (file, xmlgpx) {
-  if (!xmlgpx.gpx) return
+  if (!xmlgpx.gpx) {
+    notgpx++
+    return
+  }
   try {
     if (xmlgpx.gpx.wpt) {
-      if( !Array.isArray(xmlgpx.gpx.wpt)){
+      if (!Array.isArray(xmlgpx.gpx.wpt)) {
         xmlgpx.gpx.wpt = [xmlgpx.gpx.wpt]
       }
       for (const waypoint of xmlgpx.gpx.wpt) {
-      // console.log('waypoint', waypoint)
-        output.gpx.wpt.push(waypoint)
+        // console.log('waypoint', waypoint)
+        inputwaypoints++
+        const existing = output.gpx.wpt.find(w => w['@_lat'] === waypoint['@_lat'] && w['@_lon'] === waypoint['@_lon'] && w.time === waypoint.time && w.name === waypoint.name)
+        if (existing) {
+          duplicatewaypoints++
+        } else {
+          uniquewaypoints++
+          output.gpx.wpt.push(waypoint)
+        }
       }
     }
   } catch (e) {
@@ -143,12 +188,47 @@ async function processGPX (file, xmlgpx) {
   }
   try {
     if (xmlgpx.gpx.trk) {
-      if( !Array.isArray(xmlgpx.gpx.trk)){
+      if (!Array.isArray(xmlgpx.gpx.trk)) {
         xmlgpx.gpx.trk = [xmlgpx.gpx.trk]
       }
       for (const track of xmlgpx.gpx.trk) {
-      // console.log('track', track)
-        output.gpx.trk.push(track)
+        // console.log('track', track)
+        inputtracks++
+        let duff = false
+        let trkptcount = 0
+        if ('trkseg' in track) {
+          const trksegs = Array.isArray(track.trkseg) ? track.trkseg : [track.trkseg]
+          for (const trkseg of trksegs) {
+            if ('trkpt' in trkseg) {
+              if (Array.isArray(trkseg.trkpt)) trkptcount += trkseg.trkpt.length
+              else trkptcount++
+            } else duff = true
+          }
+        } else duff = true
+        if (!duff) {
+          // console.log('track', track)
+          validtracks++
+          let existingix = output.gpx.trk.findIndex(t => t.name === track.name)
+          // outputTrkpts
+          if (existingix !== -1 && outputTrkpts[existingix] !== trkptcount) {
+            console.log('track count discrepancy', file, outputTrkpts[existingix], trkptcount)
+            existingix = -1
+          }
+          if (existingix !== -1) {
+            duplicatetracks++
+          } else {
+            uniquetracks++
+            console.log('track OK', track.name, trkptcount)
+            output.gpx.trk.push(track)
+            outputTrkpts.push(trkptcount)
+            uniquetrackpts += trkptcount
+          }
+        } else {
+          emptytracks++
+          console.log('Duff track', file, track.name)
+          console.log('track', track)
+          // process.exit()
+        }
       }
     }
   } catch (e) {
@@ -163,7 +243,7 @@ async function generateOutput () {
   console.log(xmloutput.length)
   const now = new Date()
   // const outputpath = path.join(__dirname, config.outputFolder + '/' + now.toISOString()+'.gpx')
-  const outputpath = path.join(__dirname, config.outputFolder + '/hello.gpx')
+  const outputpath = path.join(__dirname, config.outputFolder + '/merged.gpx')
   fs.writeFileSync(outputpath, xmloutput, { encoding: 'utf8', flush: true })
 
   console.log('Created: ', outputpath)
