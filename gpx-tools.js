@@ -241,9 +241,11 @@ async function processGPX (file, xmlgpx) {
 async function generateOutput () {
   const xmloutput = '<?xml version="1.0"?>' + xmlbuilder.build(output)
   console.log(xmloutput.length)
-  const now = new Date()
-  // const outputpath = path.join(__dirname, config.outputFolder + '/' + now.toISOString()+'.gpx')
-  const outputpath = path.join(__dirname, config.outputFolder + '/merged.gpx')
+  if (!('outputFile' in config)) {
+    const now = new Date()
+    config.outputFile = now.toISOString().replaceAll(':', '-')
+  }
+  const outputpath = path.join(__dirname, config.outputFolder + '/' + config.outputFile + '.gpx')
   fs.writeFileSync(outputpath, xmloutput, { encoding: 'utf8', flush: true })
 
   console.log('Created: ', outputpath)
