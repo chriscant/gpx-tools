@@ -16,4 +16,5 @@ where `config.json` specifies the input, output and options.
   "input": {
     "gpx": "pathto/*.gpx",
   }
-}```
+}
+```
