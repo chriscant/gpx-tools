@@ -1,6 +1,17 @@
 #!/usr/bin/env node
 
-// gpx-tools
+// merge-gpx
+
+// Usage: node.exe merge-gpx.js <config.json>
+// {
+//      "outputFolder": "normalised",
+//      "outputFile": "merged",
+//      "includeTracks": false,
+//      "includePoints": true,
+//      "input": {
+//        "gpx": "d:/mobile/AllData/*.gpx",
+//      }
+// }
 
 // No need to use moment: https://momentjs.com/docs/#/-project-status/
 
@@ -28,7 +39,7 @@ console.log('version', version)
 process.env.version = version
 
 const snow = new Intl.DateTimeFormat('en-gb', { dateStyle: 'full', timeStyle: 'medium' }).format(new Date())
-const fullversion = 'gpx-tools ' + version + ' - run at ' + snow
+const fullversion = 'gpx-tools merge-gpx ' + version + ' - run at ' + snow
 
 // Where GPX data is accumulated:
 const output = {
@@ -36,7 +47,7 @@ const output = {
     wpt: [],
     trk: [],
     '@_version': version,
-    '@_creator': 'gpx-tools ' + version
+    '@_creator': 'gpx-tools ' + version + ' merge-gpx'
   }
 }
 const outputTrkpts = []
@@ -64,7 +75,7 @@ async function run (argv) {
     console.log(fullversion)
     // Display usage
     if (argv.length <= 2) {
-      console.error('usage: node gpx-tools.js <config.json>')
+      console.error('usage: node merge-gpx.js <config.json>')
       return 0
     }
 
@@ -91,6 +102,18 @@ async function run (argv) {
       return 0
     }
     console.log(config)
+
+    if (!(typeof config === 'object')) {
+      console.error('config file not a JSON object')
+      return 0
+    }
+
+    if (!('includeTracks' in config) || (typeof config.includeTracks !== 'boolean')) {
+      config.includeTracks = true
+    }
+    if (!('includePoints' in config) || (typeof config.includePoints !== 'boolean')) {
+      config.includePoints = true
+    }
 
     // Make output folder if need be
     fs.mkdirSync(path.join(__dirname, config.outputFolder), { recursive: true })
@@ -174,12 +197,14 @@ async function processGPX (file, xmlgpx) {
       for (const waypoint of xmlgpx.gpx.wpt) {
         // console.log('waypoint', waypoint)
         inputwaypoints++
-        const existing = output.gpx.wpt.find(w => w['@_lat'] === waypoint['@_lat'] && w['@_lon'] === waypoint['@_lon'] && w.time === waypoint.time && w.name === waypoint.name)
-        if (existing) {
-          duplicatewaypoints++
-        } else {
-          uniquewaypoints++
-          output.gpx.wpt.push(waypoint)
+        if (config.includePoints) {
+          const existing = output.gpx.wpt.find(w => w['@_lat'] === waypoint['@_lat'] && w['@_lon'] === waypoint['@_lon'] && w.time === waypoint.time && w.name === waypoint.name)
+          if (existing) {
+            duplicatewaypoints++
+          } else {
+            uniquewaypoints++
+            output.gpx.wpt.push(waypoint)
+          }
         }
       }
     }
@@ -208,20 +233,22 @@ async function processGPX (file, xmlgpx) {
         if (!duff) {
           // console.log('track', track)
           validtracks++
-          let existingix = output.gpx.trk.findIndex(t => t.name === track.name)
-          // outputTrkpts
-          if (existingix !== -1 && outputTrkpts[existingix] !== trkptcount) {
-            console.log('track count discrepancy', file, outputTrkpts[existingix], trkptcount)
-            existingix = -1
-          }
-          if (existingix !== -1) {
-            duplicatetracks++
-          } else {
-            uniquetracks++
-            console.log('track OK', track.name, trkptcount)
-            output.gpx.trk.push(track)
-            outputTrkpts.push(trkptcount)
-            uniquetrackpts += trkptcount
+          if (config.includeTracks) {
+            let existingix = output.gpx.trk.findIndex(t => t.name === track.name)
+            // outputTrkpts
+            if (existingix !== -1 && outputTrkpts[existingix] !== trkptcount) {
+              console.log('track count discrepancy', file, outputTrkpts[existingix], trkptcount)
+              existingix = -1
+            }
+            if (existingix !== -1) {
+              duplicatetracks++
+            } else {
+              uniquetracks++
+              console.log('track OK', track.name, trkptcount)
+              output.gpx.trk.push(track)
+              outputTrkpts.push(trkptcount)
+              uniquetrackpts += trkptcount
+            }
           }
         } else {
           emptytracks++
@@ -239,7 +266,8 @@ async function processGPX (file, xmlgpx) {
 /// ////////////////////////////////////////////////////////////////////////////////////
 
 async function generateOutput () {
-  const xmloutput = '<?xml version="1.0"?>' + xmlbuilder.build(output)
+  let xmloutput = '<?xml version="1.0"?>' + xmlbuilder.build(output)
+  xmloutput = xmloutput.replaceAll('\n', ' ')
   console.log(xmloutput.length)
   if (!('outputFile' in config)) {
     const now = new Date()
